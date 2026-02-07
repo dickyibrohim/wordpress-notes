@@ -2,7 +2,9 @@
 /**
  * Snippet Name: Elementor Custom Query: Related Posts via ACF Relationship
  * Description: Registers a custom query for Elementor to display related posts based on an ACF Relationship field.
+ * Version: 1.0.0
  * Author: Dicky Ibrohim
+ * Author URI: https://www.dickyibrohim.com
  */
 
 /**
@@ -12,7 +14,9 @@
  * 3. Update $relationship_field to your ACF Relationship field name.
  */
 
-add_action( 'elementor/query/relatedPosts', function ( $query ) {
+add_action( 'elementor/query/relatedPosts', 'ibrohim_elementor_rel_query' );
+
+function ibrohim_elementor_rel_query( $query ) {
     static $is_running = false;
 
     if ( $is_running ) {
@@ -38,4 +42,4 @@ add_action( 'elementor/query/relatedPosts', function ( $query ) {
 
         $is_running = false;
     }
-} );
+}

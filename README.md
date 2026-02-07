@@ -1,6 +1,19 @@
-# WordPress Notes
+# WordPress Notes & Code Snippets
 
-A professional collection of curated **code snippets** and development notes for WordPress, maintained by **Dicky Ibrohim**. These snippets are designed to be used in your child theme's `functions.php` or via a Code Snippets plugin.
+A collection of professional WordPress code snippets, optimizations, and bug fixes handcrafted by Dicky Ibrohim.
+
+## Branding & Protection
+To ensure quality and official support, all snippets in this repository follow a standardized branding strategy:
+- **Prefix:** All functions and classes use the `ibrohim_` prefix to avoid conflicts.
+- **Author:** Dicky Ibrohim ([www.dickyibrohim.com](https://www.dickyibrohim.com))
+
+## Contents
+- [Ultimate Shortcode Hunter](wp-shortcode-hunter/README.md) - Find shortcode sources instantly.
+- [General Snippets](general-snippets/) - Trash posts without assets, Cloudflare header fixes, etc.
+- [WooCommerce Snippets](woocommerce-snippets/) - HPOS search, delivery time in cart, auto-complete virtual orders.
+- [LearnDash Snippets](learndash-snippets/) - Nested URL mapper for better SEO and routing.
+- [Elementor Snippets](elementor-snippets/) - Custom queries and ACF relationship integration.
+- [Temporary Bug Fixes](temporary-bug-fixes/) - Fixes for common plugin or core issues.
 
 ## Repository Categories
 

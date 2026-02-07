@@ -2,230 +2,77 @@
 /**
  * Snippet Name: WC Packing Slip Bulk Action Notice
  * Description: Displays a custom success banner after bulk handling packing slips or labels in WooCommerce. Resolves issues with default notices being lost on redirect.
+ * Version: 1.0.0
  * Author: Dicky Ibrohim
+ * Author URI: https://www.dickyibrohim.com
  */
 
-if ( ! defined( 'PACKSLIP_BULK_NOTICE_META' ) ) {
-	define( 'PACKSLIP_BULK_NOTICE_META', '_packslip_bulk_notice_html' );
+if ( ! defined( 'IBROHIM_PACKSLIP_NOTICE_META' ) ) {
+	define( 'IBROHIM_PACKSLIP_NOTICE_META', '_ibrohim_packslip_notice' );
 }
 
-if ( ! function_exists( 'save_packslip_bulk_notice' ) ) {
-	function save_packslip_bulk_notice( $handler, $action ) {
-		if ( ! current_user_can( 'edit_shop_orders' ) ) {
-			return;
-		}
+add_action('admin_init', 'ibrohim_packslip_notice_handler');
+add_action('admin_footer', 'ibrohim_packslip_notice_render');
 
-		if ( ! $handler || ! method_exists( $handler, 'get_success_message' ) ) {
-			return;
-		}
+function ibrohim_packslip_notice_handler() {
+    // 1. Process closing the banner
+    if ( ! empty( $_GET['ibrohim_notice_close'] ) ) {
+        if ( isset( $_GET['_wpnonce'] ) && wp_verify_nonce( wp_unslash( $_GET['_wpnonce'] ), 'ibrohim_notice' ) ) {
+            $run = sanitize_text_field( wp_unslash( $_GET['ibrohim_notice_close'] ) );
+            $data = get_user_meta( get_current_user_id(), IBROHIM_PACKSLIP_NOTICE_META, true );
+            
+            if ( ! empty( $data ) && $data['run'] === $run ) {
+                $data['dismissed'] = $run;
+                update_user_meta( get_current_user_id(), IBROHIM_PACKSLIP_NOTICE_META, $data );
+            }
+            wp_safe_redirect( remove_query_arg( array( 'ibrohim_notice_close', '_wpnonce' ) ) );
+            exit;
+        }
+    }
 
-		$message = $handler->get_success_message();
+    // 2. Save notice when bulk actions occur
+    $hooks = [
+        'woocommerce_shiptastic_shipments_table_bulk_action_labels_handled',
+        'woocommerce_shiptastic_shipments_table_bulk_action_packing_slips_handled',
+        'woocommerce_gzd_shipments_table_bulk_action_labels_handled',
+        'woocommerce_gzd_shipments_table_bulk_action_packing_slips_handled',
+    ];
 
-		if ( empty( $message ) ) {
-			return;
-		}
+    foreach ($hooks as $hook) {
+        add_action($hook, function($handler, $action) {
+            if ( ! current_user_can( 'edit_shop_orders' ) ) return;
+            $message = $handler->get_success_message();
+            if ( empty( $message ) ) return;
 
-		$hash_source = $message . '|' . microtime( true );
-
-		if ( method_exists( $handler, 'get_filename' ) ) {
-			$hash_source .= '|' . $handler->get_filename();
-		}
-
-		$run_id = md5( $hash_source );
-		$type   = method_exists( $handler, 'get_shipment_type' ) ? $handler->get_shipment_type() : 'simple';
-
-		update_user_meta(
-			get_current_user_id(),
-			PACKSLIP_BULK_NOTICE_META,
-			array(
-				'text'      => $message,
-				'run'       => $run_id,
-				'rendered'  => '',
-				'dismissed' => '',
-				'time'      => time(),
-				'action'    => $action,
-				'screen'    => $type,
-			)
-		);
-	}
+            update_user_meta( get_current_user_id(), IBROHIM_PACKSLIP_NOTICE_META, [
+                'text'      => $message,
+                'run'       => md5( $message . microtime() ),
+                'rendered'  => '',
+                'dismissed' => '',
+                'time'      => time(),
+            ]);
+        }, 20, 2);
+    }
 }
 
-$bulk_notice_hooks = array_unique(
-	array(
-		'woocommerce_shiptastic_shipments_table_bulk_action_labels_handled',
-		'woocommerce_shiptastic_shipments_table_bulk_action_packing_slips_handled',
-		'woocommerce_shiptastic_return_shipments_table_bulk_action_labels_handled',
-		'woocommerce_shiptastic_return_shipments_table_bulk_action_packing_slips_handled',
-		'woocommerce_gzd_shipments_table_bulk_action_labels_handled',
-		'woocommerce_gzd_shipments_table_bulk_action_packing_slips_handled',
-		'woocommerce_gzd_return_shipments_table_bulk_action_labels_handled',
-		'woocommerce_gzd_return_shipments_table_bulk_action_packing_slips_handled',
-	)
-);
+function ibrohim_packslip_notice_render() {
+    if ( ! current_user_can( 'edit_shop_orders' ) ) return;
+    $data = get_user_meta( get_current_user_id(), IBROHIM_PACKSLIP_NOTICE_META, true );
 
-foreach ( $bulk_notice_hooks as $bulk_notice_hook ) {
-	add_action( $bulk_notice_hook, 'save_packslip_bulk_notice', 20, 2 );
+    if ( empty( $data ) || ! empty( $data['dismissed'] ) ) return;
+
+    $close_url = add_query_arg([
+        'ibrohim_notice_close' => $data['run'],
+        '_wpnonce'             => wp_create_nonce( 'ibrohim_notice' ),
+    ]);
+
+    ?>
+    <div id="ibrohim-banner" style="border-left:4px solid #00d084; background:#f0f6fc; padding:15px; margin:20px 0; border-radius:2px; box-shadow:0 1px 1px rgba(0,0,0,0.04);">
+        <p style="margin:0 0 10px; font-size:14px;"><?php echo wp_kses_post($data['text']); ?></p>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <a class="button" href="<?php echo esc_url($close_url); ?>">Dismiss Notice</a>
+            <span style="font-size:10px; opacity:0.6;">Solutions by <a href="https://www.dickyibrohim.com" target="_blank" style="color:#00d084;">www.dickyibrohim.com</a></span>
+        </div>
+    </div>
+    <?php
 }
-unset( $bulk_notice_hooks );
-
-if ( ! function_exists( 'render_packslip_notice_banner' ) ) {
-	function render_packslip_notice_banner() {
-		if ( ! current_user_can( 'edit_shop_orders' ) ) {
-			return;
-		}
-
-		if ( ! function_exists( 'get_current_screen' ) ) {
-			return;
-		}
-
-		$screen = get_current_screen();
-
-		$allowed_screens = array(
-			'woocommerce_page_wc-stc-shipments'        => 'simple',
-			'woocommerce_page_wc-stc-return-shipments' => 'return',
-		);
-
-		if ( ! $screen || ! isset( $allowed_screens[ $screen->id ] ) ) {
-			return;
-		}
-
-		$current_context = $allowed_screens[ $screen->id ];
-		$data            = get_user_meta( get_current_user_id(), PACKSLIP_BULK_NOTICE_META, true );
-
-		if ( empty( $data ) || empty( $data['text'] ) || empty( $data['run'] ) ) {
-			return;
-		}
-
-		if ( ! empty( $data['screen'] ) && $data['screen'] !== $current_context ) {
-			return;
-		}
-
-		if ( ! empty( $data['dismissed'] ) && $data['dismissed'] === $data['run'] ) {
-			return;
-		}
-
-		if ( ! empty( $data['rendered'] ) && $data['rendered'] === $data['run'] ) {
-			return;
-		}
-
-		$page_slug = ( 'return' === $current_context ) ? 'wc-stc-return-shipments' : 'wc-stc-shipments';
-
-		$close_url = add_query_arg(
-			array(
-				'packslip_notice_close' => $data['run'],
-				'_wpnonce'              => wp_create_nonce( 'packslip_notice' ),
-			),
-			admin_url( 'admin.php?page=' . $page_slug )
-		);
-
-		$payload = array(
-			'message'      => wp_kses_post( $data['text'] ),
-			'dismiss_url'  => esc_url( $close_url ),
-			'dismiss_text' => esc_html__( 'To Overview', 'woocommerce' ), // Translated from 'Zur Übersicht'
-		);
-		?>
-		<style>
-			#packslip-banner {
-				border-left: 4px solid #2271b1;
-				background: #f0f6fc;
-				padding: 14px 18px;
-				margin-bottom: 16px;
-				box-shadow: 0 1px 1px rgba(0,0,0,0.04);
-				border-radius: 2px;
-			}
-			#packslip-banner .packslip-message {
-				margin: 0 0 10px;
-				font-size: 14px;
-				line-height: 1.5;
-			}
-			#packslip-banner .packslip-actions {
-				margin: 0;
-			}
-		</style>
-		<script>
-			(function() {
-				var data = <?php echo wp_json_encode( $payload ); ?>;
-
-				function insertBanner() {
-					var wrapper = document.querySelector( '#wpbody-content .wrap' ) || document.querySelector( '#wpbody-content' ) || document.body;
-
-					if ( ! wrapper || document.getElementById( 'packslip-banner' ) ) {
-						return;
-					}
-
-					var banner = document.createElement( 'div' );
-
-					banner.id = 'packslip-banner';
-					banner.innerHTML =
-						'<p class="packslip-message">' + data.message + '</p>' +
-						'<p class="packslip-actions"><a class="button" href="' + data.dismiss_url + '">' + data.dismiss_text + '</a></p>';
-
-					wrapper.insertBefore( banner, wrapper.firstChild );
-				}
-
-				if ( document.readyState === 'complete' || document.readyState === 'interactive' ) {
-					insertBanner();
-				} else {
-					document.addEventListener( 'DOMContentLoaded', insertBanner );
-				}
-			})();
-		</script>
-		<?php
-
-		update_user_meta(
-			get_current_user_id(),
-			PACKSLIP_BULK_NOTICE_META,
-			array(
-				'text'      => $data['text'],
-				'run'       => $data['run'],
-				'rendered'  => $data['run'],
-				'dismissed' => isset( $data['dismissed'] ) ? $data['dismissed'] : '',
-				'time'      => isset( $data['time'] ) ? $data['time'] : time(),
-				'action'    => isset( $data['action'] ) ? $data['action'] : 'labels',
-				'screen'    => $current_context,
-			)
-		);
-	}
-}
-add_action( 'admin_footer', 'render_packslip_notice_banner' );
-
-if ( ! function_exists( 'close_packslip_notice_banner' ) ) {
-	function close_packslip_notice_banner() {
-		if ( empty( $_GET['packslip_notice_close'] ) ) {
-			return;
-		}
-
-		if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( wp_unslash( $_GET['_wpnonce'] ), 'packslip_notice' ) ) {
-			return;
-		}
-
-		$run  = sanitize_text_field( wp_unslash( $_GET['packslip_notice_close'] ) );
-		$data = get_user_meta( get_current_user_id(), PACKSLIP_BULK_NOTICE_META, true );
-
-		if ( empty( $data ) || empty( $data['run'] ) || $data['run'] !== $run ) {
-			return;
-		}
-
-		if ( isset( $data['dismissed'] ) && $data['dismissed'] === $data['run'] ) {
-			return;
-		}
-
-		update_user_meta(
-			get_current_user_id(),
-			PACKSLIP_BULK_NOTICE_META,
-			array(
-				'text'      => $data['text'],
-				'run'       => $data['run'],
-				'dismissed' => $data['run'],
-				'rendered'  => $data['run'],
-				'time'      => isset( $data['time'] ) ? $data['time'] : time(),
-				'action'    => isset( $data['action'] ) ? $data['action'] : 'labels',
-				'screen'    => isset( $data['screen'] ) ? $data['screen'] : 'simple',
-			)
-		);
-
-		wp_safe_redirect( remove_query_arg( array( 'packslip_notice_close', '_wpnonce' ) ) );
-		exit;
-	}
-}
-add_action( 'admin_init', 'close_packslip_notice_banner' );

@@ -2,7 +2,9 @@
 /**
  * Snippet Name: WP Trash Posts Without Featured Image or Video
  * Description: Automatically moves published posts to the trash if they do not have a featured image AND do not have a video URL.
+ * Version: 1.0.0
  * Author: Dicky Ibrohim
+ * Author URI: https://www.dickyibrohim.com
  */
 
 /**
@@ -11,9 +13,9 @@
  * Once the cleanup is done, please DISABLE OR REMOVE this script.
  */
 
-add_action('admin_init', 'wp_trash_empty_posts_cleanup');
+add_action('admin_init', 'ibrohim_trash_missing_assets');
 
-function wp_trash_empty_posts_cleanup() {
+function ibrohim_trash_missing_assets() {
     // Only run on the posts list page to avoid overhead
     global $pagenow;
     if ($pagenow !== 'edit.php') {

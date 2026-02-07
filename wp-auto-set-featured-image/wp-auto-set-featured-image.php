@@ -2,36 +2,35 @@
 /**
  * Snippet Name: WP Auto-Set Featured Image
  * Description: Automatically sets the first attached image as the featured image for a post if one is not already set.
+ * Version: 1.0.0
  * Author: Dicky Ibrohim
+ * Author URI: https://www.dickyibrohim.com
  */
 
-function wp_auto_set_featured_image_from_attachments() {
-  global $post;
-  
-  if ( ! isset($post->ID) ) return;
+add_action('the_post', 'ibrohim_auto_set_featured_image');
+add_action('save_post', 'ibrohim_auto_set_featured_image');
+add_action('draft_to_publish', 'ibrohim_auto_set_featured_image');
+add_action('new_to_publish', 'ibrohim_auto_set_featured_image');
+add_action('pending_to_publish', 'ibrohim_auto_set_featured_image');
+add_action('future_to_publish', 'ibrohim_auto_set_featured_image');
 
-  $already_has_thumb = has_post_thumbnail($post->ID);
-  
-  if (!$already_has_thumb) {
-    $attached_image = get_children( array(
-        'post_parent'    => $post->ID,
-        'post_type'      => 'attachment',
-        'post_mime_type' => 'image',
-        'numberposts'    => 1
-    ) );
+function ibrohim_auto_set_featured_image() {
+    global $post;
     
-    if ($attached_image) {
-      foreach ($attached_image as $attachment_id => $attachment) {
-        set_post_thumbnail($post->ID, $attachment_id);
-      }
-    }
-  }
-}
+    if ( ! isset($post->ID) ) return;
 
-// Hook into various post-related actions
-add_action('the_post', 'wp_auto_set_featured_image_from_attachments');
-add_action('save_post', 'wp_auto_set_featured_image_from_attachments');
-add_action('draft_to_publish', 'wp_auto_set_featured_image_from_attachments');
-add_action('new_to_publish', 'wp_auto_set_featured_image_from_attachments');
-add_action('pending_to_publish', 'wp_auto_set_featured_image_from_attachments');
-add_action('future_to_publish', 'wp_auto_set_featured_image_from_attachments');
+    if ( ! has_post_thumbnail($post->ID) ) {
+        $attached_image = get_children( array(
+            'post_parent'    => $post->ID,
+            'post_type'      => 'attachment',
+            'post_mime_type' => 'image',
+            'numberposts'    => 1
+        ) );
+        
+        if ($attached_image) {
+            foreach ($attached_image as $attachment_id => $attachment) {
+                set_post_thumbnail($post->ID, $attachment_id);
+            }
+        }
+    }
+}

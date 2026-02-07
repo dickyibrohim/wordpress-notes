@@ -2,7 +2,9 @@
 /**
  * Snippet Name: WP Bulk Invoice Downloader
  * Description: Refactored tool for bulk downloading and renaming admin invoices with professional English translations.
+ * Version: 1.0.0
  * Author: Dicky Ibrohim
+ * Author URI: https://www.dickyibrohim.com
  */
 
 /**
@@ -13,20 +15,17 @@
  * 4. Click the green button at the bottom left to confirm and rename each file.
  */
 
-add_action('admin_footer', 'wp_bulk_invoice_downloader_script');
+add_action('admin_footer', 'ibrohim_bulk_invoice_downloader_script');
 
-function wp_bulk_invoice_downloader_script() {
+function ibrohim_bulk_invoice_downloader_script() {
     ?>
     <script type="text/javascript">
     (async function() {
-        // Disclaimer: Use this script at your own risk.
-        // It is intended to simplify tasks, not replace official processes.
-        
         const rows = document.querySelectorAll("table tbody tr");
         let index = 0;
         let button = null;
         let isProcessing = false;
-        let directoryHandle = null; // Handle for download folder
+        let directoryHandle = null;
 
         async function requestDownloadFolder() {
             try {
@@ -45,25 +44,18 @@ function wp_bulk_invoice_downloader_script() {
                 return;
             }
 
-            if (isProcessing) {
-                console.log("⚠️ Waiting for the previous file to be processed...");
-                return;
-            }
-
+            if (isProcessing) return;
             isProcessing = true;
 
             const row = rows[index];
-
-            // Extract Company Name, Invoice Number, and Invoice Date from the table
             const companyName = row.children[3]?.innerText.trim()
-                .replace(/[^a-zA-Z0-9\s]/g, "") // Remove special characters
-                .replace(/\s+/g, "_"); // Replace spaces with underscores (_)
+                .replace(/[^a-zA-Z0-9\s]/g, "")
+                .replace(/\s+/g, "_");
             
             const invoiceNumber = row.children[5]?.innerText.trim().replace(/\s+/g, "");
             const invoiceDate = row.children[6]?.innerText.trim().replace(/\s+/g, "");
 
             const fileName = `FP_${companyName}_${invoiceNumber}_${invoiceDate}.pdf`;
-
             const downloadButton = row.querySelector("#DownloadButton");
 
             if (downloadButton) {
@@ -71,7 +63,6 @@ function wp_bulk_invoice_downloader_script() {
                 downloadButton.click();
                 showButton(fileName);
             } else {
-                console.error(`❌ Failed to find download button for ${fileName}`);
                 index++;
                 isProcessing = false;
                 downloadNext();
@@ -80,7 +71,6 @@ function wp_bulk_invoice_downloader_script() {
 
         function showButton(fileName) {
             removeButton();
-
             button = document.createElement("button");
             button.innerText = `Click here to select & rename file to: ${fileName}`;
             button.style.position = "fixed";
@@ -102,7 +92,6 @@ function wp_bulk_invoice_downloader_script() {
                     downloadNext();
                 }
             };
-
             document.body.appendChild(button);
         }
 
@@ -115,22 +104,14 @@ function wp_bulk_invoice_downloader_script() {
 
         async function renameAndDeleteFile(fileName) {
             try {
-                console.log("📂 Please select the recently downloaded PDF file...");
-
                 const [fileHandle] = await window.showOpenFilePicker({
                     types: [{ description: "PDF Files", accept: { "application/pdf": [".pdf"] } }]
                 });
 
-                if (!fileHandle) {
-                    throw new Error("No file selected.");
-                }
-
-                console.log("📂 File selected, reading content...");
+                if (!fileHandle) throw new Error("No file selected.");
 
                 const file = await fileHandle.getFile();
                 const blob = await file.arrayBuffer();
-
-                console.log(`🔄 Saving file as: ${fileName}`);
 
                 const newHandle = await window.showSaveFilePicker({
                     suggestedName: fileName,
@@ -141,24 +122,13 @@ function wp_bulk_invoice_downloader_script() {
                 await writable.write(blob);
                 await writable.close();
 
-                console.log(`✅ Successfully saved: ${fileName}`);
-
-                // 🔥 Attempt to delete original file if folder access was granted
                 if (directoryHandle) {
                     try {
                         await directoryHandle.removeEntry(fileHandle.name);
-                        console.log(`🗑️ Original file (${fileHandle.name}) deleted successfully.`);
-                    } catch (deleteError) {
-                        console.warn(`⚠️ Could not delete original file (${fileHandle.name}). Please delete manually.`);
-                    }
-                } else {
-                    alert(`❌ Original file (${fileHandle.name}) could not be deleted automatically. Please delete manually.`);
+                    } catch (e) {}
                 }
-
                 return true;
             } catch (error) {
-                console.error(`❌ Failed to rename file: ${fileName}`, error);
-                alert("Failed to rename file. Make sure you selected the correct file.");
                 return false;
             }
         }
@@ -167,5 +137,8 @@ function wp_bulk_invoice_downloader_script() {
         downloadNext();
     })();
     </script>
+    <div style='position:fixed; bottom:5px; left:20px; font-size:10px; opacity:0.6; z-index:9999;'>
+        Discover more at <a href='https://www.dickyibrohim.com' target='_blank' style='color:#00d084;'>www.dickyibrohim.com</a>
+    </div>
     <?php
 }

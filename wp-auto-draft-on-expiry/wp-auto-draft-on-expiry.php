@@ -2,7 +2,9 @@
 /**
  * Snippet Name: WP Auto-Draft on Expiry
  * Description: Automatically changes the status of published posts to 'draft' when a specified date in a custom field has passed.
+ * Version: 1.0.0
  * Author: Dicky Ibrohim
+ * Author URI: https://www.dickyibrohim.com
  */
 
 /**
@@ -11,7 +13,9 @@
  * - Update 'anfangsdatum' to your custom field name (Date format: Ymd).
  */
 
-function wp_auto_draft_expired_posts() {
+add_action('init', 'ibrohim_auto_draft_expired_posts');
+
+function ibrohim_auto_draft_expired_posts() {
     $args = array(
         'post_type'   => 'lehrgaenge', // Change this to your CPT
         'post_status' => 'publish',
@@ -38,4 +42,3 @@ function wp_auto_draft_expired_posts() {
         wp_reset_postdata();
     }
 }
-add_action('init', 'wp_auto_draft_expired_posts');

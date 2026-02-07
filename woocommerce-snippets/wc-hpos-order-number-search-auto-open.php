@@ -2,10 +2,14 @@
 /**
  * Snippet Name: WC HPOS Search by Custom Order Number (Auto Open)
  * Description: Enables searching for orders by custom order number or formatted number when using High-Performance Order Storage (HPOS). Automatically opens the order if a single match is found.
+ * Version: 1.0.0
  * Author: Dicky Ibrohim
+ * Author URI: https://www.dickyibrohim.com
  */
 
-add_action('current_screen', function ($screen) {
+add_action('current_screen', 'ibrohim_hpos_search_auto_open_handler');
+
+function ibrohim_hpos_search_auto_open_handler($screen) {
     if (!is_admin() || !current_user_can('manage_woocommerce')) return;
     if (!$screen || empty($screen->id) || $screen->id !== 'woocommerce_page_wc-orders') return;
     if (empty($_GET['s'])) return;
@@ -43,7 +47,7 @@ add_action('current_screen', function ($screen) {
             exit;
         }
         $url = remove_query_arg(['s']);
-        $url = add_query_arg(['page' => 'wc-orders', 'sab_order_ids' => implode(',', $meta_matches)], admin_url('admin.php'));
+        $url = add_query_arg(['page' => 'wc-orders', 'ibrohim_order_ids' => implode(',', $meta_matches)], admin_url('admin.php'));
         wp_safe_redirect($url);
         exit;
     }
@@ -52,15 +56,17 @@ add_action('current_screen', function ($screen) {
         wp_safe_redirect(admin_url('admin.php?page=wc-orders&action=edit&id=' . $id_match[0]));
         exit;
     }
-});
+}
 
-add_filter('woocommerce_orders_table_query_clauses', function ($clauses) {
-    if (empty($_GET['sab_order_ids'])) return $clauses;
-    $ids = array_filter(array_map('absint', explode(',', $_GET['sab_order_ids'])));
+add_filter('woocommerce_orders_table_query_clauses', 'ibrohim_hpos_search_auto_open_clauses');
+
+function ibrohim_hpos_search_auto_open_clauses($clauses) {
+    if (empty($_GET['ibrohim_order_ids'])) return $clauses;
+    $ids = array_filter(array_map('absint', explode(',', $_GET['ibrohim_order_ids'])));
     if (empty($ids)) return $clauses;
     global $wpdb;
     $table = $wpdb->prefix . 'wc_orders';
     $in = implode(',', array_map('intval', $ids));
     $clauses['where'] .= " AND {$table}.id IN ($in) ";
     return $clauses;
-});
+}

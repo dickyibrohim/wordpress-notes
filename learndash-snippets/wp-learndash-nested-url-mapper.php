@@ -2,7 +2,9 @@
 /**
  * Snippet Name: LearnDash Nested URL Mapper
  * Description: Fixes 404 errors for nested LearnDash URLs and handles Polylang-aware routing and access validation.
+ * Version: 1.0.0
  * Author: Dicky Ibrohim
+ * Author URI: https://www.dickyibrohim.com
  */
 
 if (!defined('ABSPATH')) exit;
@@ -13,13 +15,13 @@ if (!defined('ABSPATH')) exit;
  * Ensure Polylang is configured correctly if you are using it.
  */
 
-$GLOBALS['LD_MAPPED_THIS_REQUEST'] = false;
+$GLOBALS['IBROHIM_LD_MAPPED'] = false;
 
 /* --------------------------
  * Helpers (route, parse, ACL)
  * -------------------------*/
 
-function ld_is_ld_route_uri($uri = null) {
+function ibrohim_ld_is_route_uri($uri = null) {
     if ($uri === null) $uri = $_SERVER['REQUEST_URI'] ?? '';
     if ($uri === '' || strpos($uri, '/wp-json') === 0) return false;
     $path = parse_url($uri, PHP_URL_PATH);
@@ -28,7 +30,7 @@ function ld_is_ld_route_uri($uri = null) {
 }
 
 /** Parse /courses/... into pieces */
-function ld_parse_parts() {
+function ibrohim_ld_parse_parts() {
     $path = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
     if (!$path) return null;
     $path = rtrim($path, '/');
@@ -90,7 +92,7 @@ function ld_parse_parts() {
 }
 
 /** LearnDash access checks */
-function ld_user_has_access_to_step($post_id) {
+function ibrohim_ld_user_has_access($post_id) {
     if (function_exists('sfwd_lms_has_access')) {
         return (bool) sfwd_lms_has_access($post_id, get_current_user_id());
     }
@@ -98,7 +100,7 @@ function ld_user_has_access_to_step($post_id) {
 }
 
 /** Relation helpers (prefer LD, fallback meta/parent) */
-function ld_get_course_id_fallback($post_id) {
+function ibrohim_ld_get_course_id($post_id) {
     if (function_exists('learndash_get_course_id')) {
         $cid = learndash_get_course_id($post_id);
         if ($cid) return (int) $cid;
@@ -108,10 +110,10 @@ function ld_get_course_id_fallback($post_id) {
         if ($v) return (int) $v;
     }
     $p = (int) get_post_field('post_parent', $post_id);
-    if ($p) return ld_get_course_id_fallback($p);
+    if ($p) return ibrohim_ld_get_course_id($p);
     return 0;
 }
-function ld_get_lesson_id_fallback($post_id) {
+function ibrohim_ld_get_lesson_id($post_id) {
     if (function_exists('learndash_get_lesson_id')) {
         $lid = learndash_get_lesson_id($post_id);
         if ($lid) return (int) $lid;
@@ -122,20 +124,9 @@ function ld_get_lesson_id_fallback($post_id) {
     }
     return 0;
 }
-function ld_get_topic_id_fallback($post_id) {
-    if (function_exists('learndash_get_topic_id')) {
-        $tid = learndash_get_topic_id($post_id);
-        if ($tid) return (int) $tid;
-    }
-    foreach (['topic_id','ld_topic_id','sfwd-topic'] as $k) {
-        $v = get_post_meta($post_id, $k, true);
-        if ($v) return (int) $v;
-    }
-    return 0;
-}
 
 /** Strict single by slug/lang/CPT */
-function ld_get_single_by_slug_lang_cpt($slug, $cpt, $lang) {
+function ibrohim_ld_get_by_slug($slug, $cpt, $lang) {
     $args = [
         'post_type'      => $cpt,
         'name'           => $slug,
@@ -154,16 +145,13 @@ function ld_get_single_by_slug_lang_cpt($slug, $cpt, $lang) {
 }
 
 /** Build a stable "gate" URL for users without access */
-function ld_gate_url_for($course_id, $lang) {
-    // If not logged in, prefer login with redirect_to back to current URL
+function ibrohim_ld_gate_url($course_id, $lang) {
     if (!is_user_logged_in()) {
         $current = (is_ssl() ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? '') . ($_SERVER['REQUEST_URI'] ?? '/');
         return wp_login_url($current);
     }
-    // Logged in but not enrolled → send to course permalink (Polylang handles lang)
     $u = get_permalink($course_id);
     if ($u && !empty($lang) && function_exists('pll_get_post')) {
-        // Ensure course URL in the requested language (if translation exists)
         $tr = pll_get_post($course_id, $lang);
         if ($tr) $u = get_permalink($tr);
     }
@@ -174,26 +162,28 @@ function ld_gate_url_for($course_id, $lang) {
  * 1) Early mapping in `request` (strict + validated)
  * ------------------------------------------------*/
 
-add_filter('request', function ($query_vars) {
-    if (!ld_is_ld_route_uri()) return $query_vars;
+add_filter('request', 'ibrohim_ld_nested_url_request_handler', 0);
 
-    $p = ld_parse_parts();
+function ibrohim_ld_nested_url_request_handler($query_vars) {
+    if (!ibrohim_ld_is_route_uri()) return $query_vars;
+
+    $p = ibrohim_ld_parse_parts();
     if (!$p) return $query_vars;
 
     // Resolve course first (strict)
-    $course_id = ld_get_single_by_slug_lang_cpt($p['course_slug'], 'sfwd-courses', $p['lang']);
+    $course_id = ibrohim_ld_get_by_slug($p['course_slug'], 'sfwd-courses', $p['lang']);
     if (!$course_id) return $query_vars;
 
     $target_id = 0;
     $target_pt = 'sfwd-courses';
 
     if ($p['marker'] === 'topics' && $p['lesson_slug'] && $p['final_slug']) {
-        $lesson_id = ld_get_single_by_slug_lang_cpt($p['lesson_slug'], 'sfwd-lessons', $p['lang']);
-        if ($lesson_id && ld_get_course_id_fallback($lesson_id) === $course_id) {
-            $topic_id = ld_get_single_by_slug_lang_cpt($p['final_slug'], 'sfwd-topic', $p['lang']);
+        $lesson_id = ibrohim_ld_get_by_slug($p['lesson_slug'], 'sfwd-lessons', $p['lang']);
+        if ($lesson_id && ibrohim_ld_get_course_id($lesson_id) === $course_id) {
+            $topic_id = ibrohim_ld_get_by_slug($p['final_slug'], 'sfwd-topic', $p['lang']);
             if ($topic_id) {
-                $topic_lesson_id = ld_get_lesson_id_fallback($topic_id);
-                $topic_course_id = ld_get_course_id_fallback($topic_id);
+                $topic_lesson_id = ibrohim_ld_get_lesson_id($topic_id);
+                $topic_course_id = ibrohim_ld_get_course_id($topic_id);
                 if ($topic_lesson_id === $lesson_id && $topic_course_id === $course_id) {
                     $target_id = $topic_id;
                     $target_pt = 'sfwd-topic';
@@ -201,12 +191,12 @@ add_filter('request', function ($query_vars) {
             }
         }
     } elseif ($p['marker'] === 'quizzes' && $p['final_slug']) {
-        $quiz_id = ld_get_single_by_slug_lang_cpt($p['final_slug'], 'sfwd-quiz', $p['lang']);
-        if ($quiz_id && ld_get_course_id_fallback($quiz_id) === $course_id) {
+        $quiz_id = ibrohim_ld_get_by_slug($p['final_slug'], 'sfwd-quiz', $p['lang']);
+        if ($quiz_id && ibrohim_ld_get_course_id($quiz_id) === $course_id) {
             if ($p['lesson_slug']) {
-                $lesson_id = ld_get_single_by_slug_lang_cpt($p['lesson_slug'], 'sfwd-lessons', $p['lang']);
+                $lesson_id = ibrohim_ld_get_by_slug($p['lesson_slug'], 'sfwd-lessons', $p['lang']);
                 if ($lesson_id) {
-                    $quiz_lesson_id = ld_get_lesson_id_fallback($quiz_id);
+                    $quiz_lesson_id = ibrohim_ld_get_lesson_id($quiz_id);
                     if ($quiz_lesson_id === 0 || $quiz_lesson_id === $lesson_id) {
                         $target_id = $quiz_id;
                         $target_pt = 'sfwd-quiz';
@@ -218,8 +208,8 @@ add_filter('request', function ($query_vars) {
             }
         }
     } elseif ($p['marker'] === 'lessons' && $p['lesson_slug']) {
-        $lesson_id = ld_get_single_by_slug_lang_cpt($p['lesson_slug'], 'sfwd-lessons', $p['lang']);
-        if ($lesson_id && ld_get_course_id_fallback($lesson_id) === $course_id) {
+        $lesson_id = ibrohim_ld_get_by_slug($p['lesson_slug'], 'sfwd-lessons', $p['lang']);
+        if ($lesson_id && ibrohim_ld_get_course_id($lesson_id) === $course_id) {
             $target_id = $lesson_id;
             $target_pt = 'sfwd-lessons';
         }
@@ -232,7 +222,7 @@ add_filter('request', function ($query_vars) {
 
     // If child step and user has no access → do NOT map; let LD redirect later
     $is_child = in_array($target_pt, ['sfwd-lessons','sfwd-topic','sfwd-quiz'], true);
-    if ($is_child && !ld_user_has_access_to_step($target_id)) {
+    if ($is_child && !ibrohim_ld_user_has_access($target_id)) {
         return $query_vars;
     }
 
@@ -245,7 +235,7 @@ add_filter('request', function ($query_vars) {
     $target = get_post($target_id);
     if (!$target) return $query_vars;
 
-    $GLOBALS['LD_MAPPED_THIS_REQUEST'] = true;
+    $GLOBALS['IBROHIM_LD_MAPPED'] = true;
 
     return array_merge($query_vars, [
         'p'         => $target_id,
@@ -253,58 +243,53 @@ add_filter('request', function ($query_vars) {
         'name'      => $target->post_name,
         'error'     => '',
     ]);
-}, 0);
+}
 
 /* -----------------------------------------------------------------
  * 2) Redirect guard (break LD-route⇄LD-route ping-pong for no-access)
  * ----------------------------------------------------------------*/
 
-add_action('init', function () {
-    // Always allow non-LD routes to behave normally.
-    if (!ld_is_ld_route_uri()) return;
+add_action('init', 'ibrohim_ld_nested_url_redirect_guard');
+
+function ibrohim_ld_nested_url_redirect_guard() {
+    if (!ibrohim_ld_is_route_uri()) return;
 
     add_filter('wp_redirect', function ($location, $status) {
-        // If redirecting to a non-LD route, allow.
-        if (!ld_is_ld_route_uri($location)) return $location;
+        if (!ibrohim_ld_is_route_uri($location)) return $location;
 
-        // We’re redirecting to another LD route. Decide whether to normalize.
-        $p = ld_parse_parts();
+        $p = ibrohim_ld_parse_parts();
         if (!$p) return $location;
 
-        // Resolve the course to build a stable gate URL
-        $course_id = ld_get_single_by_slug_lang_cpt($p['course_slug'], 'sfwd-courses', $p['lang']);
+        $course_id = ibrohim_ld_get_by_slug($p['course_slug'], 'sfwd-courses', $p['lang']);
         if (!$course_id) return $location;
 
-        // If we already mapped (enrolled users), allow the redirect unless it’s another LD route ping-pong
-        if ($GLOBALS['LD_MAPPED_THIS_REQUEST']) {
-            // Allow login/enroll/account flows
+        if ($GLOBALS['IBROHIM_LD_MAPPED']) {
             $loc_path = parse_url($location, PHP_URL_PATH) ?: '';
             foreach (['login','enroll','my-account','checkout','cart'] as $k) {
                 if (stripos($loc_path, $k) !== false) return $location;
             }
-            // Block LD→LD hop: stay on current (no redirect)
             return false;
         }
 
-        // Not mapped (guest/not-enrolled). Normalize any LD→LD redirect to a single gate URL.
-        $gate = ld_gate_url_for($course_id, $p['lang']);
+        $gate = ibrohim_ld_gate_url($course_id, $p['lang']);
         if (!$gate) return $location;
 
-        // Avoid self-redirect
         $curr = (is_ssl() ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? '') . ($_SERVER['REQUEST_URI'] ?? '/');
         if (trailingslashit($gate) === trailingslashit($curr)) {
             return false;
         }
         return $gate;
     }, 0, 2);
-});
+}
 
 /* ------------------------------------------------------
  * 3) Suppress canonicals only when we actually mapped
  * -----------------------------------------------------*/
 
-add_action('template_redirect', function () {
-    if (!$GLOBALS['LD_MAPPED_THIS_REQUEST']) return;
+add_action('template_redirect', 'ibrohim_ld_nested_url_template_cleanup', 0);
+
+function ibrohim_ld_nested_url_template_cleanup() {
+    if (!$GLOBALS['IBROHIM_LD_MAPPED']) return;
 
     remove_action('template_redirect', 'redirect_canonical');
     add_filter('redirect_canonical', '__return_false', 99);
@@ -313,10 +298,10 @@ add_action('template_redirect', function () {
     }
 
     if (!headers_sent()) {
-        header('X-LD-Route: 1');
-        header('X-LD-Mapped: 1');
+        header('X-Ibrohim-LD-Route: 1');
+        header('X-Ibrohim-LD-Mapped: 1');
         if (is_singular() && ($obj = get_queried_object()) instanceof WP_Post) {
-            header('X-LD-Object: ' . $obj->post_type . '#' . $obj->ID);
+            header('X-Ibrohim-LD-Object: ' . $obj->post_type . '#' . $obj->ID);
         }
     }
-}, 0);
+}

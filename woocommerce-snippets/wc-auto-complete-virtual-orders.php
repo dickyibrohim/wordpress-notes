@@ -2,7 +2,9 @@
 /**
  * Snippet Name: WC Auto-Complete Virtual Orders
  * Description: Automatically completes WooCommerce orders if all items are virtual or downloadable. Skips manual bank transfers (BACS).
+ * Version: 1.0.0
  * Author: Dicky Ibrohim
+ * Author URI: https://www.dickyibrohim.com
  */
 
 /**
@@ -10,9 +12,9 @@
  * To include BACS (Direct Bank Transfer) in auto-completion, remove the check for 'bacs' in the code.
  */
 
-add_action( 'woocommerce_thankyou', 'auto_complete_virtual_downloadable_orders' );
+add_action( 'woocommerce_thankyou', 'ibrohim_auto_complete_virtual_orders' );
 
-function auto_complete_virtual_downloadable_orders( $order_id ) {
+function ibrohim_auto_complete_virtual_orders( $order_id ) {
 	if ( ! $order_id ) {
 		return;
 	}
