@@ -1,9 +1,9 @@
 # Ultimate Shortcode Hunter (Level 2)
 
 **Snippet Name:** Ultimate Shortcode Hunter (Level 2)  
-**Description:** Finds shortcodes via WP Registry OR Physical File Scan (Deep Scan).  
+**Description:** High-precision registry reflection (including "Nuclear" mode) with Deep Physical File Scan fallback.  
 **Author:** Dicky Ibrohim  
-**Version:** 2.1 (Deep Scan Edition)
+**Version:** 2.3 (Super Power + Deep Scan)
 
 ## Problem
 Many developers wrap their shortcode registration in `if (!is_admin())` checks. This means the shortcode won't appear in the `global $shortcode_tags` registry when you are in the WordPress dashboard (`wp-admin`). This snippet helps you find the source of any shortcode by checking both the registry and performing a physical file scan.
@@ -35,6 +35,14 @@ If you are troubleshooting something specifically in the admin, use it there:
 
 Example:
 `https://yoursite.com/wp-admin/?find_shortcode=my_test_shortcode`
+
+### 3. The "Nuclear" Option (Find Everything)
+If you still can't find it, or simply want to see every shortcode currently active on your system:
+
+Example:
+`https://yoursite.com/?find_shortcode=all`
+
+This will generate a scrollable list of all registered shortcodes and their exact file sources.
 
 ---
 
