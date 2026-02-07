@@ -1,0 +1,58 @@
+<?php
+/**
+ * Snippet Name: WC HPOS Search by Custom Order Number (Standard)
+ * Description: Enables searching for orders by custom order number or formatted number when using High-Performance Order Storage (HPOS).
+ * Author: Dicky Ibrohim
+ */
+
+add_action('current_screen', function ($screen) {
+    if (!is_admin() || !current_user_can('manage_woocommerce')) return;
+    if (!$screen || empty($screen->id) || $screen->id !== 'woocommerce_page_wc-orders') return;
+    if (empty($_GET['s'])) return;
+
+    $raw = (string) $_GET['s'];
+    if (!preg_match('/^#?\d+$/', $raw)) return;
+    $num = preg_replace('/\D+/', '', $raw);
+    if ($num === '') return;
+
+    global $wpdb;
+    $keys = [
+        '_order_number','_order_number_formatted',
+        '_alg_wc_custom_order_number','_alg_wc_full_custom_order_number',
+        '_sequential_order_number','order_number','order_number_formatted',
+        'wt_ons_order_number','ywpo_number'
+    ];
+    $wco  = $wpdb->prefix . 'wc_orders';
+    $wcom = $wpdb->prefix . 'wc_orders_meta';
+    $placeholders = implode(',', array_fill(0, count($keys), '%s'));
+    $sql = $wpdb->prepare(
+        "SELECT om.order_id FROM $wcom AS om JOIN $wco AS o ON o.id = om.order_id WHERE om.meta_value = %s AND om.meta_key IN ($placeholders)",
+        array_merge([$num], $keys)
+    );
+    $meta_matches = array_values(array_unique(array_map('absint', (array) $wpdb->get_col($sql))));
+
+    $ids = [];
+    if (!empty($meta_matches)) {
+        $ids = $meta_matches;
+    } else {
+        $maybe = absint($num);
+        if ($maybe && wc_get_order($maybe)) $ids = [$maybe];
+    }
+    if (empty($ids)) return;
+
+    $url = remove_query_arg(['s']);
+    $url = add_query_arg(['page' => 'wc-orders', 'sab_order_ids' => implode(',', $ids)], admin_url('admin.php'));
+    wp_safe_redirect($url);
+    exit;
+});
+
+add_filter('woocommerce_orders_table_query_clauses', function ($clauses) {
+    if (empty($_GET['sab_order_ids'])) return $clauses;
+    $ids = array_filter(array_map('absint', explode(',', $_GET['sab_order_ids'])));
+    if (empty($ids)) return $clauses;
+    global $wpdb;
+    $table = $wpdb->prefix . 'wc_orders';
+    $in = implode(',', array_map('intval', $ids));
+    $clauses['where'] .= " AND {$table}.id IN ($in) ";
+    return $clauses;
+});
